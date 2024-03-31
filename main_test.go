@@ -10,6 +10,6 @@ func TestBadParameters(t *testing.T) {
 	getCoinValuesTimeRange(1, "")
 	getCoinValuesTimeRange(1, "bad")
 
-	getValueFromMySql("")
-	getValueFromMySql("bad")
+	getValueFromPostgres("")
+	getValueFromPostgres("bad")
 }

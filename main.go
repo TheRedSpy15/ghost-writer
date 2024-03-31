@@ -23,7 +23,7 @@ import (
 	"github.com/gocolly/colly"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/generative-ai-go/genai"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mmcdole/gofeed"
@@ -498,7 +498,7 @@ var forecastTemplate = `
 </html>
 `
 
-var db *pgx.Conn
+var db *pgxpool.Pool
 
 func main() {
 	// load environment variables
@@ -508,11 +508,12 @@ func main() {
 	}
 
 	// connect to the database
-	db, err = pgx.Connect(context.Background(), os.Getenv("databaseUrl"))
+	db, err = pgxpool.New(context.Background(), os.Getenv("databaseUrl"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
 	}
+	defer db.Close()
 
 	// create a scheduler
 	s, err := gocron.NewScheduler()
@@ -523,7 +524,7 @@ func main() {
 	// market watcher job
 	_, err = s.NewJob(
 		gocron.DurationJob(
-			1*time.Minute,
+			15*time.Minute,
 		),
 		gocron.NewTask(
 			func() {
@@ -539,7 +540,7 @@ func main() {
 	// predictions job
 	_, err = s.NewJob(
 		gocron.DurationJob(
-			60*time.Minute*12, // every 12 hours
+			60*time.Minute*24, // every 24 hours
 		),
 		gocron.NewTask(
 			func() {
@@ -557,7 +558,7 @@ func main() {
 	// rss job
 	_, err = s.NewJob(
 		gocron.DurationJob(
-			30*time.Minute,
+			1*time.Minute,
 		),
 		gocron.NewTask(
 			func() {
@@ -622,7 +623,7 @@ func checkFeedsAndPost() {
 			}
 			determineHeadlineSetiment(item.Title, "BTC", item.Link)
 
-			standardPost(pContent, pTitle)
+			standardPost(pContent, pTitle, item.Link)
 		}
 	}
 }
@@ -676,10 +677,10 @@ func isArticleAlreadyParaphrased(url string) bool {
 	return false
 }
 
-func standardPost(content string, title string) {
+func standardPost(content string, title string, source string) {
 	createPost(GhostPost{
 		Title:        title,
-		HTML:         content,
+		HTML:         content + "<br><br><a href='" + source + "'>Source</a>",
 		FeatureImage: fetchUnsplashImage("cryptocurrency").Urls.Small,
 		Featured:     false,
 		Status:       "published",
@@ -730,7 +731,7 @@ func dailyForecast(coin string) {
 }
 
 func getPercentChange24h(c string) float64 {
-	// get the 24h percent change of a cryptocurrency from a MySQL database only. Do not use API
+	// get the 24h percent change of a cryptocurrency from a Postgres database only. Do not use API
 	change := 0.0
 
 	// get the values from the database
@@ -760,9 +761,9 @@ func getPercentChange24h(c string) float64 {
 }
 
 func getCoinValue(c string) float64 {
-	// get the value of a cryptocurrency from a MySQL database. If the value is not found, or is older than 4 hours, get it from an API.
+	// get the value of a cryptocurrency from a Postgres database. If the value is not found, or is older than 4 hours, get it from an API.
 	// If the API is down, return the most recent value from the database.
-	localVal, err := getValueFromMySql(c)
+	localVal, err := getValueFromPostgres(c)
 	if err != nil {
 		log.Println(err)
 		return 0
@@ -776,7 +777,7 @@ func getCoinValue(c string) float64 {
 			log.Println(err)
 			return localVal.value
 		}
-		saveCoinValuesToMySql([]CoinConversion{
+		saveCoinValuesToPostgres([]CoinConversion{
 			{
 				value: values.Data[c][0].Quote.USD.Price,
 				coin:  c,
@@ -789,7 +790,7 @@ func getCoinValue(c string) float64 {
 	return localVal.value
 }
 
-// wrapper function to prioritize getting values from MySQL database
+// wrapper function to prioritize getting values from Postgres database
 func getCoinValuesTimeRange(start int64, coin string) []CoinConversion {
 	// the API does not provide historical data, so we must rely on the database for this information.
 	// get all values from the database from start to now
@@ -816,8 +817,8 @@ func getCoinValuesTimeRange(start int64, coin string) []CoinConversion {
 	return values
 }
 
-// get the value of a cryptocurrency from a MySQL database
-func getValueFromMySql(c string) (CoinConversion, error) {
+// get the value of a cryptocurrency from a Postgres database
+func getValueFromPostgres(c string) (CoinConversion, error) {
 	rows, err := db.Query(context.Background(), "SELECT * FROM exchange_rates WHERE coin = $1 ORDER BY created_at DESC LIMIT 1", c)
 	if err != nil {
 		log.Printf("Error querying database: %v", err)
@@ -860,8 +861,8 @@ func getCoinSentiment(c string, h int) int {
 	return value
 }
 
-// save the sentiment of a cryptocurrency to a MySQL database
-func saveCoinSentimentToMySql(sentiments []CoinSentiment) {
+// save the sentiment of a cryptocurrency to a Postgres database
+func saveCoinSentimentToPostgres(sentiments []CoinSentiment) {
 	for _, sentiment := range sentiments {
 		_, err := db.Exec(context.Background(), "INSERT INTO sentiments (sentiment, coin, source) VALUES ($1, $2, $3)", sentiment.sentiment, sentiment.coin, sentiment.source)
 		if err != nil {
@@ -870,8 +871,8 @@ func saveCoinSentimentToMySql(sentiments []CoinSentiment) {
 	}
 }
 
-// save the value of a cryptocurrency to a MySQL database
-func saveCoinValuesToMySql(values []CoinConversion) {
+// save the value of a cryptocurrency to a Postgres database
+func saveCoinValuesToPostgres(values []CoinConversion) {
 	for _, value := range values {
 		_, err := db.Exec(context.Background(), "INSERT INTO exchange_rates (value, coin) VALUES ($1, $2)", value.value, value.coin)
 		if err != nil {
@@ -901,10 +902,12 @@ func getCoinValuesFromAPI(coin string) (CoinValuesResponse, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Println("Error sending request to server")
+		return CoinValuesResponse{}, err
 	}
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Println("Error reading response body")
+		return CoinValuesResponse{}, err
 	}
 
 	// convert response to struct
@@ -1142,7 +1145,7 @@ func determineHeadlineSetiment(text string, coin string, source string) (int, er
 	}
 
 	// save the sentiment to the database
-	saveCoinSentimentToMySql([]CoinSentiment{
+	saveCoinSentimentToPostgres([]CoinSentiment{
 		{
 			createdAt: time.Now(),
 			sentiment: parsed,
