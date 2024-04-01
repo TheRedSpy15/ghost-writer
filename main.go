@@ -597,6 +597,10 @@ func checkFeedsAndPost() {
 		"https://cryptoslate.com/feed",
 	}
 
+	// randomize the order of the feeds
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(feeds), func(i, j int) { feeds[i], feeds[j] = feeds[j], feeds[i] })
+
 	for _, feed := range feeds {
 		log.Println("Parsing feed: ", feed)
 
