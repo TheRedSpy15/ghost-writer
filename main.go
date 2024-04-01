@@ -524,7 +524,7 @@ func main() {
 	// market watcher job
 	_, err = s.NewJob(
 		gocron.DurationJob(
-			15*time.Minute,
+			30*time.Minute,
 		),
 		gocron.NewTask(
 			func() {
@@ -558,7 +558,7 @@ func main() {
 	// rss job
 	_, err = s.NewJob(
 		gocron.DurationJob(
-			1*time.Minute,
+			60*time.Minute*4, // every 4 hours
 		),
 		gocron.NewTask(
 			func() {
@@ -690,19 +690,27 @@ func standardPost(content string, title string, source string) {
 
 func dailyForecast(coin string) {
 	curr := getCoinValue(coin)
-	week, _ := strconv.ParseFloat(forecast(coin, "1 week"), 64)
-	month, _ := strconv.ParseFloat(forecast(coin, "1 month"), 64)
-	threeMonths, _ := strconv.ParseFloat(forecast(coin, "3 months"), 64)
+	week, _ := forecast(coin, "1 week")
+	weekF, _ := strconv.ParseFloat(week, 64)
+	month, _ := forecast(coin, "1 month")
+	monthF, _ := strconv.ParseFloat(month, 64)
+	threeMonths, _ := forecast(coin, "3 months")
+	threeMonthsF, _ := strconv.ParseFloat(threeMonths, 64)
 	//desc := generateForecastDescription(coin, curr, week, month, threeMonths)
+
+	// if any of the forecasts are 0, do not post
+	if weekF == 0 || monthF == 0 || threeMonthsF == 0 {
+		return
+	}
 
 	forecastData := MarketForecast{
 		Description: disclaimer,
 		Currency:    coin,
 		Price:       curr,
 		Chatter:     sentimentUrlList(),
-		OneWeek:     week,
-		OneMonth:    month,
-		ThreeMonths: threeMonths,
+		OneWeek:     weekF,
+		OneMonth:    monthF,
+		ThreeMonths: threeMonthsF,
 		Change24h:   getPercentChange24h(coin),
 	}
 
@@ -791,16 +799,16 @@ func getCoinValue(c string) float64 {
 }
 
 // wrapper function to prioritize getting values from Postgres database
-func getCoinValuesTimeRange(start int64, coin string) []CoinConversion {
+func getCoinValuesTimeRange(start int64, coin string) ([]CoinConversion, error) {
 	// the API does not provide historical data, so we must rely on the database for this information.
 	// get all values from the database from start to now
 	values := []CoinConversion{}
 
 	// get the values from the database
-	rows, err := db.Query(context.Background(), "SELECT * FROM exchange_rates WHERE coin = ? AND created_at > ? ORDER BY created_at DESC", coin, time.Unix(start, 0))
+	rows, err := db.Query(context.Background(), "SELECT * FROM exchange_rates WHERE coin = $1 AND created_at > $2 ORDER BY created_at DESC", coin, time.Unix(start, 0))
 	if err != nil {
 		log.Printf("Error querying database: %v", err)
-		return values
+		return values, err
 	}
 	defer rows.Close()
 
@@ -814,7 +822,7 @@ func getCoinValuesTimeRange(start int64, coin string) []CoinConversion {
 		values = append(values, value)
 	}
 
-	return values
+	return values, nil
 }
 
 // get the value of a cryptocurrency from a Postgres database
@@ -1163,13 +1171,18 @@ func determineHeadlineSetiment(text string, coin string, source string) (int, er
 	return parsed, nil
 }
 
-func forecast(coin string, timespan string) string {
+func forecast(coin string, timespan string) (string, error) {
 	values := []int{}
 
 	from := time.Now().Add(-1 * time.Hour * time.Duration(1000)).Unix()
 
 	// get the values of the coin from the past h hours
-	for _, value := range getCoinValuesTimeRange(from, coin) {
+	coinValues, err := getCoinValuesTimeRange(from, coin)
+	if err != nil {
+		return "", err
+	}
+
+	for _, value := range coinValues {
 		values = append(values, int(value.value))
 	}
 
@@ -1177,17 +1190,17 @@ func forecast(coin string, timespan string) string {
 
 	client, err := genai.NewClient(ctx, option.WithAPIKey(os.Getenv("geminiKey")))
 	if err != nil {
-		log.Println(err)
+		return "", err
 	}
 	defer client.Close()
 
 	model := client.GenerativeModel("gemini-pro")
 	resp, err := model.GenerateContent(ctx, genai.Text("You are a finicial consultant. It is required you give a best guess. Only provide a USD estimate and nothing else. Do not use special characters. just numbers. Forecast the price of "+coin+" "+timespan+" from now. Here is a list of recent values in USD from the last 168 hours "+fmt.Sprint(values)))
 	if err != nil {
-		log.Println(err)
+		return "", err
 	}
 
-	return fmt.Sprint(resp.Candidates[0].Content.Parts[0])
+	return fmt.Sprint(resp.Candidates[0].Content.Parts[0]), nil
 }
 
 func generateForecastDescription(coin string, current float64, week float64, month float64, months float64) string {
