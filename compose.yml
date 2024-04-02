@@ -1,0 +1,24 @@
+name: ghostwriter
+services:
+    ghost-writer:
+        environment:
+            - geminiKey=CHANGEME
+            - coinmarketKey=CHANGEME
+            - cententKey=CHANGEME
+            - adminKey=CHANGEME
+            - adminId=CHANGEME
+            - apiUrl=CHANGEME
+            - unsplashId=CHANGEME
+            - unsplashKey=CHANGEME
+            - unsplashSecret=CHANGEME
+            - unsplashBearer=CHANGEME
+            - databaseUrl=CHANGEME
+        image: theredspy15/ghost-writer
+        ports:
+          - "8080:8080"
+        healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+        restart: on-failure

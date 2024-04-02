@@ -6,8 +6,6 @@ data.sqlite
 # docker
 .DS_Store
 .dockerignore
-Dockerfile
-compose.yml
 
 # Created by https://www.toptal.com/developers/gitignore/api/go
 # Edit at https://www.toptal.com/developers/gitignore?templates=go
