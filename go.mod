@@ -3,7 +3,7 @@ module ghost/writer
 go 1.21.3
 
 require (
-	github.com/go-co-op/gocron/v2 v2.2.9
+	github.com/go-co-op/gocron/v2 v2.2.10
 	github.com/go-echarts/go-echarts/v2 v2.3.3
 	github.com/gocolly/colly v1.2.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
@@ -17,9 +17,7 @@ require (
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/pgx v3.6.2+incompatible // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 )
 
 require (
