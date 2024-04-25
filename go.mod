@@ -1,6 +1,6 @@
 module ghost/writer
 
-go 1.21.3
+go 1.22.0
 
 require (
 	github.com/go-co-op/gocron/v2 v2.2.10
