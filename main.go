@@ -539,9 +539,9 @@ func main() {
 
 	// predictions job
 	_, err = s.NewJob(
-		gocron.DurationJob(
-			60*time.Minute*24, // every 24 hours
-		),
+		gocron.DailyJob(1, gocron.NewAtTimes(
+			gocron.NewAtTime(12, 0, 0),
+		)),
 		gocron.NewTask(
 			func() {
 				if time.Now().Weekday() == time.Sunday {
@@ -607,6 +607,7 @@ func checkFeedsAndPost() {
 		feed, err := fp.ParseURL(feed)
 		if err != nil {
 			log.Println(err)
+			continue
 		}
 
 		for _, item := range feed.Items {
