@@ -3,7 +3,7 @@ module ghost/writer
 go 1.21.3
 
 require (
-	github.com/go-co-op/gocron/v2 v2.2.9
+	github.com/go-co-op/gocron/v2 v2.5.0
 	github.com/go-echarts/go-echarts/v2 v2.3.3
 	github.com/gocolly/colly v1.2.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
@@ -17,9 +17,7 @@ require (
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/pgx v3.6.2+incompatible // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 )
 
 require (
@@ -60,10 +58,10 @@ require (
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	golang.org/x/crypto v0.21.0 // indirect
-	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
+	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
-	golang.org/x/sync v0.6.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
